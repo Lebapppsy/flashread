@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Steady — paste, then read without moving your eyes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,700;1,7..72,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    --bg: #EDEFF2;
+    --panel: #F7F8FA;
+    --ink: #1C2027;
+    --ink-2: #5B6470;
+    --ink-3: #9AA3AE;
+    --line: #D3D8DE;
+    --pivot: #B0302B;
+    --accent: #1F5F8B;
+    --accent-ink: #FFFFFF;
+    --hi: rgba(31, 95, 139, .16);
+    --num: #B0621A;
+    --serif: "Literata", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15181D; --panel: #1D2128; --ink: #E7E9EC; --ink-2: #A3ABB5; --ink-3: #6B7480;
+      --line: #2E343C; --pivot: #E0574F; --accent: #7FB3D9; --accent-ink: #10151B; --hi: rgba(127,179,217,.22); --num: #E8A857;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15181D; --panel: #1D2128; --ink: #E7E9EC; --ink-2: #A3ABB5; --ink-3: #6B7480;
+    --line: #2E343C; --pivot: #E0574F; --accent: #7FB3D9; --accent-ink: #10151B; --hi: rgba(127,179,217,.22); --num: #E8A857;
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html { height: 100%; scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    height: 100%; margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); font-size: 15px; line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .app { height: 100%; display: flex; flex-direction: column; }
+
+  /* ---- top bar ---- */
+  .bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+  .brand { font-family: var(--serif); font-weight: 500; font-size: 18px; letter-spacing: .01em; }
+  .brand span { color: var(--pivot); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; margin-left: auto; }
+  .seg button {
+    border: 0; background: transparent; padding: 6px 12px; border-radius: 999px; color: var(--ink-2);
+  }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  .ghost {
+    border: 1px solid var(--line); background: transparent; padding: 6px 10px; border-radius: 8px; color: var(--ink-2);
+  }
+  .ghost:hover { color: var(--ink); }
+
+  /* ---- paste view ---- */
+  .paste {
+    flex: 1; display: flex; flex-direction: column; gap: 12px;
+    padding: 18px 16px; max-width: 760px; width: 100%; margin: 0 auto; min-height: 0;
+  }
+  .paste h1 { font-family: var(--serif); font-weight: 400; font-size: clamp(22px, 4vw, 30px); margin: 4px 0 0; line-height: 1.2; }
+  .paste p { margin: 0; color: var(--ink-2); max-width: 60ch; }
+  textarea {
+    flex: 1; min-height: 180px; width: 100%; resize: none;
+    padding: 14px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--panel); font-family: var(--serif); font-size: 16px; line-height: 1.55;
+  }
+  .paste .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .primary {
+    border: 0; background: var(--accent); color: var(--accent-ink);
+    padding: 11px 18px; border-radius: 10px; font-weight: 600;
+  }
+  .primary:disabled { opacity: .45; cursor: default; }
+  .count { color: var(--ink-3); margin-left: auto; }
+
+  /* ---- reader ---- */
+  .reader { flex: 1; display: none; flex-direction: column; min-height: 0; }
+  .reader.on { display: flex; }
+  .stage { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
+  .stage:focus { outline: none; }
+
+  /* flash */
+  .flash { flex: 1; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 0 12px; }
+  .flash.on { display: flex; }
+  .frame {
+    position: relative; width: min(100%, 720px);
+    padding: clamp(22px, 5vh, 44px) 0;
+  }
+  .frame::before, .frame::after {
+    content: ""; position: absolute; left: 50%; width: 2px; height: 14px; background: var(--line);
+    transform: translateX(-50%);
+  }
+  .frame::before { top: 4px; }
+  .frame::after { bottom: 4px; }
+  .frame .rule { position: absolute; left: 0; right: 0; top: 0; height: 1px; background: var(--line); }
+  .frame .rule.b { top: auto; bottom: 0; }
+  .word {
+    display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline;
+    font-family: var(--serif); font-size: clamp(26px, 6.2vw, 44px); line-height: 1.2;
+    white-space: pre; overflow: visible; word-spacing: .14em;
+  }
+  .word .l { text-align: right; }
+  .word .r { text-align: left; }
+  .word .p { color: var(--pivot); }
+  .b { font-weight: 700; }
+  .k { color: var(--accent); }
+  .n { color: var(--num); }
+  .word .p.k, .word .p.n { color: var(--pivot); }
+  .sweep.dim .s:not(.on) .k, .sweep.dim .s:not(.on) .n { color: inherit; }
+  .recap {
+    position: absolute; inset: 0; display: none; flex-direction: column; justify-content: center; align-items: center;
+    background: var(--bg); z-index: 5; padding: 20px; text-align: center; gap: 14px;
+  }
+  .recap.on { display: flex; }
+  .recap small { color: var(--ink-3); }
+  .recap .terms { font-family: var(--serif); font-size: clamp(22px, 4.5vw, 34px); line-height: 1.35; color: var(--accent); max-width: 30ch; }
+  .word.idle { color: var(--ink-3); font-size: clamp(18px, 4vw, 24px); }
+  .context {
+    margin-top: 22px; width: min(100%, 640px); text-align: center;
+    font-family: var(--serif); font-size: clamp(14px, 2.2vw, 17px); line-height: 1.5;
+    color: var(--ink-3); min-height: 3.2em; cursor: pointer;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .context mark { background: var(--hi); color: var(--ink); border-radius: 3px; padding: 0 2px; }
+
+  /* sentence */
+  .sent { flex: 1; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 0 20px; cursor: pointer; }
+  .sent.on { display: flex; }
+  .sentText {
+    width: min(100%, 40ch); font-family: var(--serif); font-size: clamp(20px, 3.2vw, 29px); line-height: 1.45;
+    text-align: left; text-wrap: pretty; min-height: 4.4em;
+  }
+  .sentMeta { margin-top: 26px; color: var(--ink-3); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+  /* sweep */
+  .sweep { flex: 1; display: none; overflow-y: auto; overscroll-behavior: contain; padding: 12vh 16px 60vh; scroll-behavior: auto; }
+  .sweep.on { display: block; }
+  .sweep article { max-width: 56ch; margin: 0 auto; font-family: var(--serif); font-size: clamp(17px, 2.4vw, 21px); line-height: 1.6; }
+  .sweep p { margin: 0 0 1.1em; }
+  .sweep .s { transition: color .25s; }
+  .sweep.dim .s { color: var(--ink-3); }
+  .sweep.dim .s.on { color: var(--ink); }
+  .sweep .c.cur { background: var(--hi); border-radius: 3px; box-shadow: 0 0 0 2px var(--hi); }
+  @media (prefers-reduced-motion: reduce) { .sweep .s { transition: none; } }
+
+  /* progress */
+  .progress { height: 3px; background: var(--line); }
+  .progress i { display: block; height: 100%; width: 0; background: var(--accent); }
+
+  /* ---- controls ---- */
+  .controls {
+    border-top: 1px solid var(--line); background: var(--panel);
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+    display: grid; grid-template-columns: auto 1fr; grid-template-areas: "play speed" "play opts"; gap: 8px 14px; align-items: center;
+  }
+  .play {
+    grid-area: play; width: 60px; height: 60px; border-radius: 50%; border: 0;
+    background: var(--ink); color: var(--bg); display: grid; place-items: center;
+  }
+  .play svg { width: 26px; height: 26px; fill: currentColor; }
+  .speed { grid-area: speed; display: flex; align-items: center; gap: 10px; }
+  .speed input[type=range] { flex: 1; accent-color: var(--accent); min-width: 0; }
+  .speed output { font-variant-numeric: tabular-nums; min-width: 6.5ch; text-align: right; color: var(--ink-2); }
+  .opts { grid-area: opts; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .chip {
+    border: 1px solid var(--line); background: transparent; padding: 5px 10px; border-radius: 999px;
+    color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px;
+  }
+  .chip[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); }
+  .stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .stepper button { border: 0; background: transparent; padding: 5px 10px; color: var(--ink-2); }
+  .stepper span { padding: 0 4px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .hint { color: var(--ink-3); font-size: 12px; display: none; margin-left: auto; }
+  @media (min-width: 720px) { .hint { display: inline; } }
+  @media (max-width: 420px) {
+    .play { width: 54px; height: 54px; }
+    .brand { font-size: 16px; }
+    .seg button { padding: 6px 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="bar">
+    <div class="brand">Stea<span>d</span>y</div>
+    <div class="seg" role="group" aria-label="Reading mode">
+      <button id="mFlash" aria-pressed="true">Flash</button>
+      <button id="mSent" aria-pressed="false">Sentence</button>
+      <button id="mSweep" aria-pressed="false">Sweep</button>
+    </div>
+    <button class="ghost" id="btnNew" hidden>New text</button>
+  </div>
+
+  <section class="paste" id="paste">
+    <h1>Paste something. Your eyes stay still; the text moves.</h1>
+    <p>Chapters, articles, anything. Flash shows one phrase at a time on a fixed pivot; Sweep highlights along the full page. Speed adapts to long words, names, numbers, and punctuation.</p>
+    <textarea id="txt" placeholder="Paste your text here…" spellcheck="false"></textarea>
+    <div class="row">
+      <button class="primary" id="btnStart" disabled>Start reading</button>
+      <button class="ghost" id="btnSample">Try a sample</button>
+      <span class="count" id="count"></span>
+    </div>
+  </section>
+
+  <section class="reader" id="reader">
+    <div class="stage" id="stage" tabindex="0" aria-label="Reading stage. Tap to play or pause.">
+      <div class="flash on" id="flash">
+        <div class="frame">
+          <div class="rule"></div>
+          <div class="word idle" id="word"><span class="l"></span><span class="p"></span><span class="r">Tap to start</span></div>
+          <div class="rule b"></div>
+        </div>
+        <div class="context" id="context" title="Tap to rewind one sentence"></div>
+      </div>
+      <div class="sent" id="sent">
+        <div class="sentText" id="sentText"></div>
+        <div class="sentMeta" id="sentMeta">Tap the sentence to move on, or press play</div>
+      </div>
+      <div class="sweep dim" id="sweep"><article id="article"></article></div>
+      <div class="recap" id="recap"><small>You just passed</small><div class="terms" id="recapTerms"></div><small>Keep going in a moment</small></div>
+    </div>
+    <div class="progress"><i id="prog"></i></div>
+    <div class="controls">
+      <button class="play" id="btnPlay" aria-label="Play">
+        <svg viewBox="0 0 24 24" id="icoPlay"><path d="M8 5v14l11-7z"/></svg>
+        <svg viewBox="0 0 24 24" id="icoPause" hidden><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+      </button>
+      <div class="speed">
+        <input type="range" id="wpm" min="100" max="900" step="10" value="300" aria-label="Speed in words per minute">
+        <output id="wpmOut">300 wpm</output>
+      </div>
+      <div class="opts">
+        <div class="stepper" aria-label="Words per flash">
+          <button id="wpfDown" aria-label="Fewer words per flash">−</button>
+          <span id="wpfOut">2 words</span>
+          <button id="wpfUp" aria-label="More words per flash">+</button>
+        </div>
+        <button class="chip" id="chipBold" aria-pressed="true">Bold starts</button>
+        <button class="chip" id="chipDim" aria-pressed="true">Dim others</button>
+        <button class="chip" id="chipPush" aria-pressed="true">Push pacing</button>
+        <button class="chip" id="chipRecap" aria-pressed="true">Recaps</button>
+        <button class="chip" id="chipRamp" aria-pressed="true">Slow start</button>
+        <span class="hint">Space play · ← → sentence · + − speed</span>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const els = {
+    paste: $('paste'), txt: $('txt'), start: $('btnStart'), sample: $('btnSample'), count: $('count'),
+    reader: $('reader'), stage: $('stage'), flash: $('flash'), word: $('word'), context: $('context'),
+    sweep: $('sweep'), article: $('article'), prog: $('prog'), play: $('btnPlay'), icoPlay: $('icoPlay'), icoPause: $('icoPause'),
+    wpm: $('wpm'), wpmOut: $('wpmOut'), wpfDown: $('wpfDown'), wpfUp: $('wpfUp'), wpfOut: $('wpfOut'),
+    chipBold: $('chipBold'), chipDim: $('chipDim'), chipRamp: $('chipRamp'), chipPush: $('chipPush'), chipRecap: $('chipRecap'), recap: $('recap'), recapTerms: $('recapTerms'),
+    mFlash: $('mFlash'), mSweep: $('mSweep'), mSent: $('mSent'), sent: $('sent'), sentText: $('sentText'), sentMeta: $('sentMeta'), btnNew: $('btnNew')
+  };
+
+  /* ---------- settings + storage ---------- */
+  const settings = { wpm: 300, wpf: 2, bold: true, dim: true, ramp: true, push: true, recap: true, mode: 'flash' };
+  const store = {
+    get(k) { try { const v = localStorage.getItem(k); return v == null ? null : JSON.parse(v); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+    del(k) { try { localStorage.removeItem(k); } catch {} }
+  };
+  Object.assign(settings, store.get('steady:settings') || {});
+  const saveSettings = () => store.set('steady:settings', settings);
+
+  /* ---------- word lists ---------- */
+  const COMMON = new Set(("the of and to in a is that for it as was with be by on not he this are or his from at which but " +
+    "have an they you were her she all their one we there been has when who will more no if out so said what up its about into " +
+    "than them can only other new some could time these two may then do first any my now such like our over man me even most " +
+    "made after also did many before must through back years where much your way well down should because each just those " +
+    "people how too little state good very make world still own see men work long get here between both life being under never " +
+    "day same another know while last might us great old year off come since against go came right used take three himself few " +
+    "house use during without again place around however home small found thought went say part once general high upon every " +
+    "does got left number course until always away something fact though water less put think almost hand enough far took head " +
+    "yet nothing night end why called eyes find going look asked later knew point next city give group toward young days let room " +
+    "side given present several order possible rather second face among form important often things looked early white case " +
+    "become large big need four within felt along children saw best ever least power light thing seemed family interest want " +
+    "mind country area others turned although open kind problem began door different thus help means sense whole matter itself " +
+    "perhaps free having really told mother father morning half hard done seen quite better set true black feel able heard " +
+    "moment already hours voice behind whose top yes anything told sure told across took seem making body himself real " +
+    "certain move live thought around leave keep began done word words above tell woman name told talk love money story " +
+    "sat girl boy back road held run lay stood turned wanted asked looked came knew felt heard took gave").split(/\s+/));
+  const FUNC = new Set(['the','a','an','of','to','in','on','and','or','but','for','with','at','by','from','as','is','was','be',
+    'it','that','this','are','were','its','his','her','their','our','my','your','than','into','over','under','if','so','not','no']);
+
+  /* ---------- parsing ---------- */
+  let book = null;  // { paras: [{sents:[{words:[str]}]}], words: [ {t, p, s, sentStart, sentEnd, paraEnd} ], sents: [{text, wStart, wEnd}] }
+  let chunks = [];  // [{ws:[wordIdx...], text, sIdx, paraEnd}]
+  let sentChunk = []; // sentence idx -> first chunk idx
+  let pos = 0;        // current chunk index
+  let playing = false, timer = null, playStart = 0;
+  let sinceRecap = 0, recapFrom = 0;  // ms of reading since last recap, word index where it started
+
+  function parse(text) {
+    const paras = text.replace(/\r/g, '').split(/\n\s*\n|\n(?=\s*[-•*\d]+[.)]?\s)/).map(p => p.replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean);
+    const words = [], sents = [];
+    paras.forEach((p, pi) => {
+      const parts = p.split(/(?<=[.!?…]["”’)\]]*)\s+(?=["“‘(\[]?[\p{Lu}\d])/u);
+      parts.forEach(sText => {
+        const ws = sText.split(/\s+/).filter(Boolean);
+        if (!ws.length) return;
+        const wStart = words.length;
+        ws.forEach((t, wi) => words.push({ t, p: pi, s: sents.length, sentStart: wi === 0, sentEnd: wi === ws.length - 1, paraEnd: false, k: false }));
+        sents.push({ text: sText, wStart, wEnd: words.length - 1, p: pi });
+      });
+      if (words.length) words[words.length - 1].paraEnd = true;
+    });
+    words.forEach(w => {
+      const core = w.t.replace(/[^\p{L}\p{N}']/gu, '');
+      if (!core) return;
+      if (/\d/.test(core)) { w.k = true; w.n = true; }
+      else if (/^\p{Lu}/u.test(core) && core.length > 1 && !COMMON.has(core.toLowerCase())) w.k = true;
+    });
+    sents.forEach(s => { let n = 0; for (let i = s.wStart; i <= s.wEnd; i++) if (words[i].k) n++; s.dense = n >= 3; });
+    return { paras, words, sents };
+  }
+
+  function rechunk() {
+    if (!book) return;
+    const maxWords = settings.wpf;
+    const narrow = window.innerWidth < 480;
+    const maxChars = maxWords === 1 ? 99 : Math.max(10, Math.min(narrow ? 15 : 26, maxWords * 8));
+    chunks = []; sentChunk = [];
+    book.sents.forEach((s, si) => {
+      sentChunk[si] = chunks.length;
+      let cur = [];
+      for (let i = s.wStart; i <= s.wEnd; i++) {
+        const w = book.words[i];
+        cur.push(i);
+        const text = cur.map(k => book.words[k].t).join(' ');
+        const endsPunct = /[,;:.!?…—–]["”’)\]]*$/.test(w.t);
+        const isFunc = FUNC.has(w.t.toLowerCase().replace(/[^a-z]/g, ''));
+        const next = i < s.wEnd ? book.words[i + 1] : null;
+        let flush = false;
+        if (endsPunct || !next) flush = true;
+        else if (cur.length >= maxWords) flush = !isFunc || cur.length > maxWords;
+        else if (text.length + 1 + next.t.length > maxChars) flush = !isFunc || cur.length > 1;
+        if (flush) { chunks.push({ ws: cur, text, sIdx: si, paraEnd: w.paraEnd }); cur = []; }
+      }
+    });
+    renorm();
+  }
+
+  function chunkForWord(wi) {
+    for (let c = 0; c < chunks.length; c++) if (chunks[c].ws[chunks[c].ws.length - 1] >= wi) return c;
+    return Math.max(0, chunks.length - 1);
+  }
+
+  /* ---------- timing ---------- */
+  // weight of a chunk in units of "one average word"; normalized so the slider is the true average speed
+  function rawWeight(chunk) {
+    let t = 0;
+    chunk.ws.forEach(wi => {
+      const w = book.words[wi];
+      const core = w.t.replace(/[^\p{L}\p{N}']/gu, '');
+      let m = 1;
+      if (core.length > 6) m += 0.08 * (core.length - 6);
+      const common = COMMON.has(core.toLowerCase());
+      if (settings.push) {
+        if (w.k) m += /\d/.test(core) ? 1.2 : 1.0;
+        else if (core.length > 3 && !common) m += 0.5;
+        else if (common || core.length <= 3) m *= 0.7;
+      } else {
+        if (/\d/.test(core)) m += 0.5;
+        else if (/^\p{Lu}/u.test(core) && !w.sentStart) m += 0.3;
+        else if (core.length > 3 && !common) m += 0.35;
+      }
+      t += m;
+    });
+    const tail = chunk.text.replace(/["”’)\]]+$/, '');
+    if (/[,;:—–]$/.test(tail)) t += 0.35;
+    else if (/[.!?…]$/.test(tail)) {
+      const sn = book.sents[chunk.sIdx];
+      t += Math.min(6, 1 + 0.15 * (sn.wEnd - sn.wStart + 1));   // longer sentence, longer breath
+    }
+    if (chunk.paraEnd) t += 2;
+    if (settings.push && book.sents[chunk.sIdx].dense) t *= 1.2;
+    return t;
+  }
+  let norm = 1;
+  function renorm() {
+    if (!chunks.length) { norm = 1; return; }
+    let sum = 0; chunks.forEach(c => { sum += rawWeight(c); });
+    norm = sum / book.words.length;
+  }
+  function delayFor(chunk) {
+    let wpm = settings.wpm;
+    if (settings.ramp && playing) {
+      const el = (performance.now() - playStart) / 1000;
+      if (el < 30) wpm *= 0.8 + 0.2 * (el / 30);
+    }
+    return (60000 / wpm) * rawWeight(chunk) / norm;
+  }
+
+  /* ---------- rendering ---------- */
+  const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+  // per-character bold flags for a chunk text (bionic on word starts)
+  // per-character class map: 'b' bold start (bionic), 'k' anchor word (name/number)
+  function charMap(text, boldOn, wordObjs) {
+    const map = new Array(text.length).fill('');
+    const re = /\S+/g; let m, wi = 0;
+    while ((m = re.exec(text))) {
+      const tok = m[0], n = tok.length;
+      const w = wordObjs ? wordObjs[wi++] : null;
+      const anchor = settings.push && w && w.k;
+      const lettersFrom = tok.search(/[\p{L}\p{N}]/u);
+      const core = tok.replace(/[^\p{L}\p{N}']/gu, '');
+      const k = core.length <= 3 ? 1 : Math.ceil(core.length * 0.45);
+      for (let i = 0; i < n; i++) {
+        let c = '';
+        if (boldOn && lettersFrom >= 0 && i >= lettersFrom && i < lettersFrom + k) c += 'b';
+        if (anchor) c += (c ? ' ' : '') + (w.n ? 'n' : 'k');
+        map[m.index + i] = c;
+      }
+    }
+    return map;
+  }
+  const boldMap = (text, on, wordObjs) => charMap(text, on, wordObjs);
+  function spanify(text, map, from, to, hardSpaces) {
+    let out = '', cur = '';
+    for (let i = from; i < to; i++) {
+      const c = text[i] === ' ' ? cur : map[i];
+      if (c !== cur) { if (cur) out += '</span>'; if (c) out += `<span class="${c}">`; cur = c; }
+      out += (hardSpaces && text[i] === ' ') ? '&nbsp;' : esc(text[i]);
+    }
+    if (cur) out += '</span>';
+    return out;
+  }
+  function pivotIndex(text) {
+    const n = text.length;
+    let p = n <= 1 ? 0 : n <= 5 ? 1 : n <= 9 ? 2 : n <= 13 ? 3 : Math.round(n * 0.3);
+    while (p > 0 && text[p] === ' ') p--;
+    return p;
+  }
+
+  function renderFlash() {
+    const ch = chunks[pos]; if (!ch) return;
+    const boldOn = settings.bold && ch.ws.length >= 2;
+    const map = boldMap(ch.text, boldOn, ch.ws.map(i => book.words[i]));
+    const p = pivotIndex(ch.text);
+    els.word.classList.remove('idle');
+    els.word.innerHTML =
+      `<span class="l">${spanify(ch.text, map, 0, p, true)}</span>` +
+      `<span class="p ${map[p] || ''}">${esc(ch.text[p])}</span>` +
+      `<span class="r">${spanify(ch.text, map, p + 1, ch.text.length, true)}</span>`;
+    // context strip: whole sentence, current chunk marked
+    const s = book.sents[ch.sIdx];
+    let html = '';
+    for (let c = sentChunk[ch.sIdx]; c < chunks.length && chunks[c].sIdx === ch.sIdx; c++) {
+      const t = esc(chunks[c].text);
+      html += (c === pos ? `<mark>${t}</mark>` : t) + ' ';
+    }
+    els.context.innerHTML = html;
+    void s;
+  }
+
+  function buildSweep() {
+    let html = '', ci = 0;
+    book.paras.forEach((_, pi) => {
+      html += '<p>';
+      while (ci < chunks.length && book.words[chunks[ci].ws[0]].p === pi) {
+        const si = chunks[ci].sIdx;
+        html += `<span class="s" data-s="${si}">`;
+        while (ci < chunks.length && chunks[ci].sIdx === si) {
+          const t = chunks[ci].text, map = boldMap(t, settings.bold, chunks[ci].ws.map(i => book.words[i]));
+          html += `<span class="c" data-c="${ci}">${spanify(t, map, 0, t.length)}</span> `;
+          ci++;
+        }
+        html += '</span>';
+      }
+      html += '</p>';
+    });
+    els.article.innerHTML = html;
+  }
+  let lastCur = null, lastSent = null;
+  function renderSweep() {
+    const ch = chunks[pos]; if (!ch) return;
+    if (lastCur) lastCur.classList.remove('cur');
+    lastCur = els.article.querySelector(`.c[data-c="${pos}"]`);
+    if (lastCur) lastCur.classList.add('cur');
+    if (!lastSent || +lastSent.dataset.s !== ch.sIdx) {
+      if (lastSent) lastSent.classList.remove('on');
+      lastSent = els.article.querySelector(`.s[data-s="${ch.sIdx}"]`);
+      if (lastSent) {
+        lastSent.classList.add('on');
+        const box = els.sweep, b = box.getBoundingClientRect(), r = lastSent.getBoundingClientRect();
+        const top = r.top - b.top, bottom = r.bottom - b.top;
+        if (top < 0 || bottom > b.height * 0.7) box.scrollTop += top - b.height * 0.18;
+      }
+    }
+  }
+
+  function renderSent() {
+    const ch = chunks[pos]; if (!ch) return;
+    pos = sentChunk[ch.sIdx];
+    const sn = book.sents[ch.sIdx], t = sn.text, map = boldMap(t, settings.bold, book.words.slice(sn.wStart, sn.wEnd + 1));
+    els.sentText.innerHTML = spanify(t, map, 0, t.length);
+    els.sentMeta.textContent = `Sentence ${ch.sIdx + 1} of ${book.sents.length}` + (playing ? '' : ' · tap to move on, or press play');
+  }
+
+  function render() {
+    if (!chunks.length) return;
+    pos = Math.min(Math.max(pos, 0), chunks.length - 1);
+    settings.mode === 'flash' ? renderFlash() : settings.mode === 'sent' ? renderSent() : renderSweep();
+    els.prog.style.width = (100 * (pos + 1) / chunks.length) + '%';
+    store.set('steady:pos', chunks[pos].ws[0]);
+  }
+
+  /* ---------- playback ---------- */
+  function anchorsBetween(a, b) {
+    const out = [], seen = new Set();
+    let i = a;
+    while (i <= b) {
+      const w = book.words[i];
+      if (w.k) {
+        let j = i, parts = [];
+        while (j <= b && book.words[j].k && j - i < 3) { parts.push(book.words[j].t.replace(/[,;:.!?…"“”'‘’()\[\]]+$/g, '').replace(/^["“‘(\[]+/, '')); j++; }
+        const term = parts.join(' ');
+        if (term && !seen.has(term.toLowerCase())) { seen.add(term.toLowerCase()); out.push(term); }
+        i = j;
+      } else i++;
+    }
+    return out;
+  }
+  function maybeRecap(next) {
+    const ch = chunks[pos];
+    if (!settings.recap || sinceRecap < 45000 || !book.words[ch.ws[ch.ws.length - 1]].sentEnd) return false;
+    const terms = anchorsBetween(recapFrom, ch.ws[ch.ws.length - 1]);
+    sinceRecap = 0; recapFrom = ch.ws[ch.ws.length - 1] + 1;
+    if (!terms.length) return false;
+    const pick = terms.slice(-6);
+    els.recapTerms.textContent = pick.join('  ·  ');
+    els.recap.classList.add('on');
+    timer = setTimeout(() => { els.recap.classList.remove('on'); if (playing) next(); }, 1800 + 350 * pick.length);
+    return true;
+  }
+  function tick() {
+    if (!playing) return;
+    render();
+    if (pos >= chunks.length - 1) { pause(); return; }
+    if (settings.mode === 'sent') {
+      const si = chunks[pos].sIdx;
+      let t = 0;
+      for (let c = sentChunk[si]; c < chunks.length && chunks[c].sIdx === si; c++) t += delayFor(chunks[c]);
+      timer = setTimeout(() => {
+        sinceRecap += t;
+        const go = () => { if (si + 1 >= book.sents.length) { pause(); render(); return; } pos = sentChunk[si + 1]; tick(); };
+        pos = chunks.findIndex((c, i) => i > sentChunk[si] && c.sIdx !== si) - 1; if (pos < 0) pos = chunks.length - 1;
+        if (!maybeRecap(go)) go();
+      }, t);
+      return;
+    }
+    const d = delayFor(chunks[pos]);
+    timer = setTimeout(() => {
+      sinceRecap += d;
+      const go = () => { pos++; tick(); };
+      if (!maybeRecap(go)) go();
+    }, d);
+  }
+  function play() {
+    if (!chunks.length) return;
+    if (pos >= chunks.length - 1) pos = 0;
+    playing = true; playStart = performance.now(); sinceRecap = 0; recapFrom = chunks[pos].ws[0];
+    els.icoPlay.hidden = true; els.icoPause.hidden = false; els.play.setAttribute('aria-label', 'Pause');
+    tick();
+  }
+  function pause() {
+    playing = false; clearTimeout(timer); els.recap.classList.remove('on');
+    els.icoPlay.hidden = false; els.icoPause.hidden = true; els.play.setAttribute('aria-label', 'Play');
+    if (settings.mode === 'sent' && chunks.length) renderSent();
+  }
+  const toggle = () => playing ? pause() : play();
+
+  function jumpSentence(dir) {
+    const ch = chunks[pos]; if (!ch) return;
+    let si = ch.sIdx;
+    if (dir < 0) { if (pos > sentChunk[si]) { /* mid-sentence: go to its start */ } else si = Math.max(0, si - 1); }
+    else si = Math.min(book.sents.length - 1, si + 1);
+    pos = sentChunk[si];
+    playing ? (clearTimeout(timer), tick()) : render();
+  }
+
+  /* ---------- mode + controls ---------- */
+  function setMode(mode) {
+    settings.mode = mode; saveSettings(); refreshControls();
+    els.mFlash.setAttribute('aria-pressed', mode === 'flash');
+    els.mSent.setAttribute('aria-pressed', mode === 'sent');
+    els.mSweep.setAttribute('aria-pressed', mode === 'sweep');
+    els.flash.classList.toggle('on', mode === 'flash');
+    els.sent.classList.toggle('on', mode === 'sent');
+    els.sweep.classList.toggle('on', mode === 'sweep');
+    if (book) {
+      if (mode === 'sweep') { buildSweep(); lastCur = lastSent = null; }
+      render();
+    }
+  }
+  function refreshControls() {
+    els.wpm.value = settings.wpm; els.wpmOut.textContent = settings.wpm + ' wpm';
+    els.wpfOut.textContent = settings.wpf + (settings.wpf === 1 ? ' word' : ' words');
+    els.chipBold.setAttribute('aria-pressed', settings.bold);
+    els.chipDim.setAttribute('aria-pressed', settings.dim);
+    els.chipRamp.setAttribute('aria-pressed', settings.ramp);
+    els.chipPush.setAttribute('aria-pressed', settings.push);
+    els.chipRecap.setAttribute('aria-pressed', settings.recap);
+    els.sweep.classList.toggle('dim', settings.dim);
+    els.wpfDown.parentElement.style.display = settings.mode === 'flash' ? '' : 'none';
+    els.chipDim.style.display = settings.mode === 'sweep' ? '' : 'none';
+  }
+  function setWpm(v) {
+    settings.wpm = Math.min(900, Math.max(100, Math.round(v / 10) * 10)); saveSettings(); refreshControls();
+  }
+  function setWpf(v) {
+    const wi = chunks[pos] ? chunks[pos].ws[0] : 0;
+    settings.wpf = Math.min(4, Math.max(1, v)); saveSettings(); refreshControls();
+    rechunk(); pos = chunkForWord(wi);
+    if (settings.mode === 'sweep') { buildSweep(); lastCur = lastSent = null; }
+    render();
+  }
+
+  els.wpm.addEventListener('input', () => setWpm(+els.wpm.value));
+  els.wpfDown.addEventListener('click', () => setWpf(settings.wpf - 1));
+  els.wpfUp.addEventListener('click', () => setWpf(settings.wpf + 1));
+  els.chipBold.addEventListener('click', () => {
+    settings.bold = !settings.bold; saveSettings(); refreshControls();
+    if (settings.mode === 'sweep') { buildSweep(); lastCur = lastSent = null; }
+    render();
+  });
+  els.chipDim.addEventListener('click', () => { settings.dim = !settings.dim; saveSettings(); refreshControls(); });
+  els.chipRamp.addEventListener('click', () => { settings.ramp = !settings.ramp; saveSettings(); refreshControls(); });
+  els.chipRecap.addEventListener('click', () => { settings.recap = !settings.recap; saveSettings(); refreshControls(); });
+  els.chipPush.addEventListener('click', () => {
+    settings.push = !settings.push; saveSettings(); refreshControls(); renorm();
+    if (settings.mode === 'sweep') { buildSweep(); lastCur = lastSent = null; }
+    render();
+  });
+  els.mFlash.addEventListener('click', () => setMode('flash'));
+  els.mSweep.addEventListener('click', () => setMode('sweep'));
+  els.mSent.addEventListener('click', () => setMode('sent'));
+  els.sent.addEventListener('click', () => {
+    const ch = chunks[pos]; if (!ch) return;
+    if (ch.sIdx + 1 >= book.sents.length) { pause(); return; }
+    pos = sentChunk[ch.sIdx + 1];
+    playing ? (clearTimeout(timer), tick()) : render();
+  });
+  els.play.addEventListener('click', toggle);
+  els.flash.addEventListener('click', e => { if (e.target.closest('.context')) return; toggle(); });
+  els.context.addEventListener('click', () => jumpSentence(-1));
+  els.article.addEventListener('click', e => {
+    const c = e.target.closest('.c');
+    if (c) { pos = +c.dataset.c; playing ? (clearTimeout(timer), tick()) : render(); }
+    else toggle();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (!els.reader.classList.contains('on') || e.target.tagName === 'TEXTAREA') return;
+    if (e.key === ' ') { e.preventDefault(); toggle(); }
+    else if (e.key === 'ArrowLeft') { e.preventDefault(); jumpSentence(-1); }
+    else if (e.key === 'ArrowRight') { e.preventDefault(); jumpSentence(1); }
+    else if (e.key === '+' || e.key === '=') setWpm(settings.wpm + 20);
+    else if (e.key === '-' || e.key === '_') setWpm(settings.wpm - 20);
+  });
+
+  let rsz;
+  window.addEventListener('resize', () => {
+    clearTimeout(rsz);
+    rsz = setTimeout(() => {
+      if (!book) return;
+      const wi = chunks[pos] ? chunks[pos].ws[0] : 0;
+      rechunk(); pos = chunkForWord(wi);
+      if (settings.mode === 'sweep') { buildSweep(); lastCur = lastSent = null; }
+      render();
+    }, 200);
+  });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+
+  /* ---------- paste view ---------- */
+  function updateCount() {
+    const n = els.txt.value.trim() ? els.txt.value.trim().split(/\s+/).length : 0;
+    els.start.disabled = n === 0;
+    els.count.textContent = n ? `${n.toLocaleString()} words · about ${Math.max(1, Math.round(n / settings.wpm))} min at ${settings.wpm} wpm` : '';
+  }
+  els.txt.addEventListener('input', updateCount);
+
+  // strip links, footnote markers, markdown noise and PDF line-break hyphenation
+  function clean(t) {
+    return t
+      .replace(/\r/g, '')
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, '')                       // images
+      .replace(/\[\[?\s*(?:\d+|[a-z]|note \d+|citation needed|nb \d+)\s*\]?\]\((?:[^()]|\([^)]*\))*\)/gi, '') // [[3]](url)
+      .replace(/\[([^\]]*)\]\((?:[^()]|\([^)]*\))*\)/g, '$1')       // [text](url) -> text
+      .replace(/\[([^\]]+)\]\[[^\]]*\]/g, '$1')                     // [text][ref] -> text
+      .replace(/\[\[?\s*(?:\d+|[a-z]|note \d+|citation needed|nb \d+)\s*\]?\]/gi, '') // [3] [[3]] [a]
+      .replace(/https?:\/\/\S+|www\.\S+/g, '')                      // bare urls
+      .replace(/^#{1,6}\s+/gm, '')                                  // markdown headings
+      .replace(/(\*\*|__|~~|`)/g, '')                               // emphasis markers
+      .replace(/(\w)-\n(?=[a-z])/g, '$1')                           // hyphen at line end
+      .replace(/[ \t]+([,.;:!?)\]])/g, '$1')                        // space before punctuation
+      .replace(/[ \t]{2,}/g, ' ')
+      .replace(/^[ \t]+|[ \t]+$/gm, '')
+      .replace(/\n{3,}/g, '\n\n');
+  }
+
+  function load(text, startWord) {
+    text = clean(text);
+    book = parse(text);
+    if (!book.words.length) return;
+    rechunk();
+    pos = startWord ? chunkForWord(startWord) : 0;
+    store.set('steady:text', text);
+    els.paste.style.display = 'none';
+    els.reader.classList.add('on');
+    els.btnNew.hidden = false;
+    setMode(settings.mode);
+    if (settings.mode === 'flash' && !startWord) {
+      els.word.classList.add('idle');
+      els.word.innerHTML = '<span class="l"></span><span class="p"></span><span class="r">Tap to start</span>';
+      els.context.innerHTML = esc(book.sents[0].text);
+    }
+    els.stage.focus({ preventScroll: true });
+  }
+  els.start.addEventListener('click', () => load(els.txt.value, 0));
+  els.btnNew.addEventListener('click', () => {
+    pause(); book = null; chunks = [];
+    store.del('steady:text'); store.del('steady:pos');
+    els.reader.classList.remove('on'); els.paste.style.display = ''; els.btnNew.hidden = true;
+    els.txt.value = ''; updateCount(); els.txt.focus();
+  });
+
+  const SAMPLE = `Reading is not one act but two. The eye moves in short hops called saccades, resting for a fraction of a second at each stop. In those pauses, and only in those pauses, the brain takes in letters. Everything between stops is a blur that the mind politely ignores.
+
+A skilled reader makes fewer stops and rarely doubles back. An unskilled one makes many, and returns to the same line again and again, not because the words were hard but because attention wandered. That is the trap most of us fall into with a difficult book: the eyes keep going while the mind has already left the room.
+
+Fixed-pivot reading tries to remove the problem at its root. If the text arrives at one point on the screen, there is nowhere to hop and nothing to double back to. The only choice left is whether to keep up. At 300 words per minute, this feels brisk but calm. At 500, it starts to feel like a conversation with someone who talks fast. Past 700, most people are recognizing words rather than reading sentences, and comprehension quietly slips away.
+
+The trick, then, is not speed for its own sake. It is the removal of choice. When there is nothing to decide, there is nothing to be distracted by, and the book, for once, gets read.`;
+  els.sample.addEventListener('click', () => { els.txt.value = SAMPLE; updateCount(); });
+
+  /* ---------- boot ---------- */
+  refreshControls();
+  updateCount();
+  const savedText = store.get('steady:text');
+  if (savedText && typeof savedText === 'string' && savedText.trim()) {
+    const savedPos = store.get('steady:pos');
+    load(savedText, typeof savedPos === 'number' ? savedPos : 0);
+  }
+})();
+</script>
+</body>
+</html>
