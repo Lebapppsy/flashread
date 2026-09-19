@@ -50,7 +50,7 @@
 
   /* ---- top bar ---- */
   .bar {
-    display: flex; align-items: center; gap: 10px;
+    flex: none; display: flex; align-items: center; gap: 10px;
     padding: 10px 14px; border-bottom: 1px solid var(--line);
     background: var(--panel);
   }
@@ -89,11 +89,11 @@
   /* ---- reader ---- */
   .reader { flex: 1; display: none; flex-direction: column; min-height: 0; }
   .reader.on { display: flex; }
-  .stage { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
+  .stage { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; overflow: hidden; }
   .stage:focus { outline: none; }
 
   /* flash */
-  .flash { flex: 1; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 0 12px; }
+  .flash { flex: 1; min-height: 0; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 0 12px; }
   .flash.on { display: flex; }
   .frame {
     position: relative; width: min(100%, 720px);
@@ -120,13 +120,6 @@
   .n { color: var(--num); }
   .word .p.k, .word .p.n { color: var(--pivot); }
   .sweep.dim .s:not(.on) .k, .sweep.dim .s:not(.on) .n { color: inherit; }
-  .recap {
-    position: absolute; inset: 0; display: none; flex-direction: column; justify-content: center; align-items: center;
-    background: var(--bg); z-index: 5; padding: 20px; text-align: center; gap: 14px;
-  }
-  .recap.on { display: flex; }
-  .recap small { color: var(--ink-3); }
-  .recap .terms { font-family: var(--serif); font-size: clamp(22px, 4.5vw, 34px); line-height: 1.35; color: var(--accent); max-width: 30ch; }
   .word.idle { color: var(--ink-3); font-size: clamp(18px, 4vw, 24px); }
   .context {
     margin-top: 22px; width: min(100%, 640px); text-align: center;
@@ -137,7 +130,7 @@
   .context mark { background: var(--hi); color: var(--ink); border-radius: 3px; padding: 0 2px; }
 
   /* sentence */
-  .sent { flex: 1; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 0 20px; cursor: pointer; }
+  .sent { flex: 1; min-height: 0; display: none; flex-direction: column; justify-content: center; align-items: center; padding: 0 20px; cursor: pointer; }
   .sent.on { display: flex; }
   .sentText {
     width: min(100%, 40ch); font-family: var(--serif); font-size: clamp(20px, 3.2vw, 29px); line-height: 1.45;
@@ -146,7 +139,7 @@
   .sentMeta { margin-top: 26px; color: var(--ink-3); font-size: 13px; font-variant-numeric: tabular-nums; }
 
   /* sweep */
-  .sweep { flex: 1; display: none; overflow-y: auto; overscroll-behavior: contain; padding: 12vh 16px 60vh; scroll-behavior: auto; }
+  .sweep { flex: 1; min-height: 0; display: none; overflow-y: auto; overscroll-behavior: contain; padding: 12vh 16px 60vh; scroll-behavior: auto; }
   .sweep.on { display: block; }
   .sweep article { max-width: 56ch; margin: 0 auto; font-family: var(--serif); font-size: clamp(17px, 2.4vw, 21px); line-height: 1.6; }
   .sweep p { margin: 0 0 1.1em; }
@@ -157,11 +150,12 @@
   @media (prefers-reduced-motion: reduce) { .sweep .s { transition: none; } }
 
   /* progress */
-  .progress { height: 3px; background: var(--line); }
+  .progress { height: 3px; background: var(--line); flex: none; }
   .progress i { display: block; height: 100%; width: 0; background: var(--accent); }
 
   /* ---- controls ---- */
   .controls {
+    position: relative; z-index: 2; flex: none;
     border-top: 1px solid var(--line); background: var(--panel);
     padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
     display: grid; grid-template-columns: auto 1fr; grid-template-areas: "play speed" "opts opts"; gap: 10px 16px; align-items: center;
@@ -171,6 +165,7 @@
     background: var(--ink); color: var(--bg); display: grid; place-items: center; touch-action: manipulation;
   }
   .play svg { width: 40px; height: 40px; fill: currentColor; }
+  .play svg[hidden] { display: none; }
   .speed { grid-area: speed; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .speed input[type=range] { width: 100%; height: 44px; accent-color: var(--accent); min-width: 0; margin: 0; touch-action: pan-x; }
   .speed output { font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 600; color: var(--ink); }
@@ -230,7 +225,6 @@
         <div class="sentMeta" id="sentMeta">Tap the sentence to move on, or press play</div>
       </div>
       <div class="sweep dim" id="sweep"><article id="article"></article></div>
-      <div class="recap" id="recap"><small>You just passed</small><div class="terms" id="recapTerms"></div><small>Keep going in a moment</small></div>
     </div>
     <div class="progress"><i id="prog"></i></div>
     <div class="controls">
@@ -267,12 +261,12 @@
     reader: $('reader'), stage: $('stage'), flash: $('flash'), word: $('word'), context: $('context'),
     sweep: $('sweep'), article: $('article'), prog: $('prog'), play: $('btnPlay'), icoPlay: $('icoPlay'), icoPause: $('icoPause'),
     wpm: $('wpm'), wpmOut: $('wpmOut'), wpfDown: $('wpfDown'), wpfUp: $('wpfUp'), wpfOut: $('wpfOut'),
-    chipBold: $('chipBold'), chipDim: $('chipDim'), chipRamp: $('chipRamp'), chipPush: $('chipPush'), recap: $('recap'), recapTerms: $('recapTerms'),
+    chipBold: $('chipBold'), chipDim: $('chipDim'), chipRamp: $('chipRamp'), chipPush: $('chipPush'),
     mFlash: $('mFlash'), mSweep: $('mSweep'), mSent: $('mSent'), sent: $('sent'), sentText: $('sentText'), sentMeta: $('sentMeta'), btnNew: $('btnNew')
   };
 
   /* ---------- settings + storage ---------- */
-  const settings = { v: 2, wpm: 400, wpf: 2, bold: true, dim: true, ramp: true, push: true, recap: true, mode: 'sweep' };
+  const settings = { v: 2, wpm: 400, wpf: 2, bold: true, dim: true, ramp: true, push: true, mode: 'sweep' };
   const store = {
     get(k) { try { const v = localStorage.getItem(k); return v == null ? null : JSON.parse(v); } catch { return null; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
@@ -307,7 +301,6 @@
   let sentChunk = []; // sentence idx -> first chunk idx
   let pos = 0;        // current chunk index
   let playing = false, timer = null, playStart = 0;
-  let sinceRecap = 0, recapFrom = 0;  // ms of reading since last recap, word index where it started
 
   function parse(text) {
     const paras = text.replace(/\r/g, '').split(/\n\s*\n|\n(?=\s*[-•*\d]+[.)]?\s)/).map(p => p.replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean);
@@ -526,33 +519,6 @@
   }
 
   /* ---------- playback ---------- */
-  function anchorsBetween(a, b) {
-    const out = [], seen = new Set();
-    let i = a;
-    while (i <= b) {
-      const w = book.words[i];
-      if (w.k) {
-        let j = i, parts = [];
-        while (j <= b && book.words[j].k && j - i < 3) { parts.push(book.words[j].t.replace(/[,;:.!?…"“”'‘’()\[\]]+$/g, '').replace(/^["“‘(\[]+/, '')); j++; }
-        const term = parts.join(' ');
-        if (term && !seen.has(term.toLowerCase())) { seen.add(term.toLowerCase()); out.push(term); }
-        i = j;
-      } else i++;
-    }
-    return out;
-  }
-  function maybeRecap(next) {
-    const ch = chunks[pos];
-    if (sinceRecap < 45000 || !book.words[ch.ws[ch.ws.length - 1]].sentEnd) return false;
-    const terms = anchorsBetween(recapFrom, ch.ws[ch.ws.length - 1]);
-    sinceRecap = 0; recapFrom = ch.ws[ch.ws.length - 1] + 1;
-    if (!terms.length) return false;
-    const pick = terms.slice(-6);
-    els.recapTerms.textContent = pick.join('  ·  ');
-    els.recap.classList.add('on');
-    timer = setTimeout(() => { els.recap.classList.remove('on'); if (playing) next(); }, 1800 + 350 * pick.length);
-    return true;
-  }
   function tick() {
     if (!playing) return;
     render();
@@ -562,29 +528,23 @@
       let t = 0;
       for (let c = sentChunk[si]; c < chunks.length && chunks[c].sIdx === si; c++) t += delayFor(chunks[c]);
       timer = setTimeout(() => {
-        sinceRecap += t;
-        const go = () => { if (si + 1 >= book.sents.length) { pause(); render(); return; } pos = sentChunk[si + 1]; tick(); };
-        pos = chunks.findIndex((c, i) => i > sentChunk[si] && c.sIdx !== si) - 1; if (pos < 0) pos = chunks.length - 1;
-        if (!maybeRecap(go)) go();
+        if (si + 1 >= book.sents.length) { pause(); render(); return; }
+        pos = sentChunk[si + 1]; tick();
       }, t);
       return;
     }
     const d = delayFor(chunks[pos]);
-    timer = setTimeout(() => {
-      sinceRecap += d;
-      const go = () => { pos++; tick(); };
-      if (!maybeRecap(go)) go();
-    }, d);
+    timer = setTimeout(() => { pos++; tick(); }, d);
   }
   function play() {
     if (!chunks.length) return;
     if (pos >= chunks.length - 1) pos = 0;
-    playing = true; playStart = performance.now(); sinceRecap = 0; recapFrom = chunks[pos].ws[0];
+    playing = true; playStart = performance.now();
     els.icoPlay.hidden = true; els.icoPause.hidden = false; els.play.setAttribute('aria-label', 'Pause');
     tick();
   }
   function pause() {
-    playing = false; clearTimeout(timer); els.recap.classList.remove('on');
+    playing = false; clearTimeout(timer);
     els.icoPlay.hidden = false; els.icoPause.hidden = true; els.play.setAttribute('aria-label', 'Play');
     if (settings.mode === 'sent' && chunks.length) renderSent();
   }
