@@ -163,30 +163,30 @@
   /* ---- controls ---- */
   .controls {
     border-top: 1px solid var(--line); background: var(--panel);
-    padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
-    display: grid; grid-template-columns: auto 1fr; grid-template-areas: "play speed" "play opts"; gap: 8px 14px; align-items: center;
+    padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+    display: grid; grid-template-columns: auto 1fr; grid-template-areas: "play speed" "opts opts"; gap: 10px 16px; align-items: center;
   }
   .play {
-    grid-area: play; width: 60px; height: 60px; border-radius: 50%; border: 0;
-    background: var(--ink); color: var(--bg); display: grid; place-items: center;
+    grid-area: play; width: 84px; height: 84px; border-radius: 50%; border: 0;
+    background: var(--ink); color: var(--bg); display: grid; place-items: center; touch-action: manipulation;
   }
-  .play svg { width: 26px; height: 26px; fill: currentColor; }
-  .speed { grid-area: speed; display: flex; align-items: center; gap: 10px; }
-  .speed input[type=range] { flex: 1; accent-color: var(--accent); min-width: 0; }
-  .speed output { font-variant-numeric: tabular-nums; min-width: 6.5ch; text-align: right; color: var(--ink-2); }
+  .play svg { width: 40px; height: 40px; fill: currentColor; }
+  .speed { grid-area: speed; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .speed input[type=range] { width: 100%; height: 44px; accent-color: var(--accent); min-width: 0; margin: 0; touch-action: pan-x; }
+  .speed output { font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 600; color: var(--ink); }
   .opts { grid-area: opts; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
   .chip {
-    border: 1px solid var(--line); background: transparent; padding: 5px 10px; border-radius: 999px;
+    border: 1px solid var(--line); background: transparent; padding: 7px 12px; border-radius: 999px; font-size: 13px;
     color: var(--ink-2); display: inline-flex; align-items: center; gap: 6px;
   }
   .chip[aria-pressed="true"] { border-color: var(--ink); color: var(--ink); }
   .stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
-  .stepper button { border: 0; background: transparent; padding: 5px 10px; color: var(--ink-2); }
-  .stepper span { padding: 0 4px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+  .stepper button { border: 0; background: transparent; padding: 7px 12px; color: var(--ink-2); font-size: 15px; }
+  .stepper span { padding: 0 4px; color: var(--ink-2); font-variant-numeric: tabular-nums; font-size: 13px; }
   .hint { color: var(--ink-3); font-size: 12px; display: none; margin-left: auto; }
   @media (min-width: 720px) { .hint { display: inline; } }
   @media (max-width: 420px) {
-    .play { width: 54px; height: 54px; }
+    .play { width: 76px; height: 76px; }
     .brand { font-size: 16px; }
     .seg button { padding: 6px 10px; }
   }
@@ -251,7 +251,6 @@
         <button class="chip" id="chipBold" aria-pressed="true">Bold starts</button>
         <button class="chip" id="chipDim" aria-pressed="true">Dim others</button>
         <button class="chip" id="chipPush" aria-pressed="true">Push pacing</button>
-        <button class="chip" id="chipRecap" aria-pressed="true">Recaps</button>
         <button class="chip" id="chipRamp" aria-pressed="true">Slow start</button>
         <span class="hint">Space play · ← → sentence · + − speed</span>
       </div>
@@ -268,18 +267,18 @@
     reader: $('reader'), stage: $('stage'), flash: $('flash'), word: $('word'), context: $('context'),
     sweep: $('sweep'), article: $('article'), prog: $('prog'), play: $('btnPlay'), icoPlay: $('icoPlay'), icoPause: $('icoPause'),
     wpm: $('wpm'), wpmOut: $('wpmOut'), wpfDown: $('wpfDown'), wpfUp: $('wpfUp'), wpfOut: $('wpfOut'),
-    chipBold: $('chipBold'), chipDim: $('chipDim'), chipRamp: $('chipRamp'), chipPush: $('chipPush'), chipRecap: $('chipRecap'), recap: $('recap'), recapTerms: $('recapTerms'),
+    chipBold: $('chipBold'), chipDim: $('chipDim'), chipRamp: $('chipRamp'), chipPush: $('chipPush'), recap: $('recap'), recapTerms: $('recapTerms'),
     mFlash: $('mFlash'), mSweep: $('mSweep'), mSent: $('mSent'), sent: $('sent'), sentText: $('sentText'), sentMeta: $('sentMeta'), btnNew: $('btnNew')
   };
 
   /* ---------- settings + storage ---------- */
-  const settings = { wpm: 300, wpf: 2, bold: true, dim: true, ramp: true, push: true, recap: true, mode: 'flash' };
+  const settings = { v: 2, wpm: 400, wpf: 2, bold: true, dim: true, ramp: true, push: true, recap: true, mode: 'sweep' };
   const store = {
     get(k) { try { const v = localStorage.getItem(k); return v == null ? null : JSON.parse(v); } catch { return null; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
     del(k) { try { localStorage.removeItem(k); } catch {} }
   };
-  Object.assign(settings, store.get('steady:settings') || {});
+  { const saved = store.get('steady:settings'); if (saved && saved.v === 2) Object.assign(settings, saved); }
   const saveSettings = () => store.set('steady:settings', settings);
 
   /* ---------- word lists ---------- */
@@ -544,7 +543,7 @@
   }
   function maybeRecap(next) {
     const ch = chunks[pos];
-    if (!settings.recap || sinceRecap < 45000 || !book.words[ch.ws[ch.ws.length - 1]].sentEnd) return false;
+    if (sinceRecap < 45000 || !book.words[ch.ws[ch.ws.length - 1]].sentEnd) return false;
     const terms = anchorsBetween(recapFrom, ch.ws[ch.ws.length - 1]);
     sinceRecap = 0; recapFrom = ch.ws[ch.ws.length - 1] + 1;
     if (!terms.length) return false;
@@ -621,7 +620,6 @@
     els.chipDim.setAttribute('aria-pressed', settings.dim);
     els.chipRamp.setAttribute('aria-pressed', settings.ramp);
     els.chipPush.setAttribute('aria-pressed', settings.push);
-    els.chipRecap.setAttribute('aria-pressed', settings.recap);
     els.sweep.classList.toggle('dim', settings.dim);
     els.wpfDown.parentElement.style.display = settings.mode === 'flash' ? '' : 'none';
     els.chipDim.style.display = settings.mode === 'sweep' ? '' : 'none';
@@ -647,7 +645,6 @@
   });
   els.chipDim.addEventListener('click', () => { settings.dim = !settings.dim; saveSettings(); refreshControls(); });
   els.chipRamp.addEventListener('click', () => { settings.ramp = !settings.ramp; saveSettings(); refreshControls(); });
-  els.chipRecap.addEventListener('click', () => { settings.recap = !settings.recap; saveSettings(); refreshControls(); });
   els.chipPush.addEventListener('click', () => {
     settings.push = !settings.push; saveSettings(); refreshControls(); renorm();
     if (settings.mode === 'sweep') { buildSweep(); lastCur = lastSent = null; }
