@@ -27,13 +27,13 @@
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #15181D; --panel: #1D2128; --ink: #E7E9EC; --ink-2: #A3ABB5; --ink-3: #6B7480;
-      --line: #2E343C; --pivot: #E0574F; --accent: #7FB3D9; --accent-ink: #10151B; --hi: rgba(127,179,217,.22); --num: #E8A857;
+      --bg: #171A1F; --panel: #1F232A; --ink: #EDEFF2; --ink-2: #AAB2BC; --ink-3: #6F7883;
+      --line: #323942; --pivot: #F0655A; --accent: #8FC3EC; --accent-ink: #12161C; --hi: rgba(143,195,236,.24); --num: #F2B15E;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #15181D; --panel: #1D2128; --ink: #E7E9EC; --ink-2: #A3ABB5; --ink-3: #6B7480;
-    --line: #2E343C; --pivot: #E0574F; --accent: #7FB3D9; --accent-ink: #10151B; --hi: rgba(127,179,217,.22); --num: #E8A857;
+    --bg: #171A1F; --panel: #1F232A; --ink: #EDEFF2; --ink-2: #AAB2BC; --ink-3: #6F7883;
+    --line: #323942; --pivot: #F0655A; --accent: #8FC3EC; --accent-ink: #12161C; --hi: rgba(143,195,236,.24); --num: #F2B15E;
   }
   *, *::before, *::after { box-sizing: inherit; }
   html { height: 100%; scroll-padding-top: env(safe-area-inset-top, 0px); }
@@ -56,6 +56,14 @@
   }
   .brand { font-family: var(--serif); font-weight: 500; font-size: 18px; letter-spacing: .01em; }
   .brand span { color: var(--pivot); }
+  .theme {
+    width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: transparent;
+    display: grid; place-items: center; color: var(--ink-2); padding: 0; flex: none;
+  }
+  .theme svg { width: 16px; height: 16px; fill: currentColor; }
+  .theme .ico-sun { display: none; }
+  :root[data-theme="dark"] .theme .ico-moon { display: none; }
+  :root[data-theme="dark"] .theme .ico-sun { display: block; }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; margin-left: auto; }
   .seg button {
     border: 0; background: transparent; padding: 6px 12px; border-radius: 999px; color: var(--ink-2);
@@ -165,7 +173,9 @@
     background: var(--ink); color: var(--bg); display: grid; place-items: center; touch-action: manipulation;
   }
   .play svg { width: 40px; height: 40px; fill: currentColor; }
-  .play svg[hidden] { display: none; }
+  .play .ico-pause { display: none; }
+  .play.playing .ico-play { display: none; }
+  .play.playing .ico-pause { display: block; }
   .speed { grid-area: speed; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .speed input[type=range] { width: 100%; height: 44px; accent-color: var(--accent); min-width: 0; margin: 0; touch-action: pan-x; }
   .speed output { font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 600; color: var(--ink); }
@@ -191,6 +201,10 @@
 <div class="app">
   <div class="bar">
     <div class="brand">Stea<span>d</span>y</div>
+    <button class="theme" id="btnTheme" aria-label="Switch between light and dark">
+      <svg class="ico-moon" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
+      <svg class="ico-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+    </button>
     <div class="seg" role="group" aria-label="Reading mode">
       <button id="mFlash" aria-pressed="true">Flash</button>
       <button id="mSent" aria-pressed="false">Sentence</button>
@@ -229,8 +243,8 @@
     <div class="progress"><i id="prog"></i></div>
     <div class="controls">
       <button class="play" id="btnPlay" aria-label="Play">
-        <svg viewBox="0 0 24 24" id="icoPlay"><path d="M8 5v14l11-7z"/></svg>
-        <svg viewBox="0 0 24 24" id="icoPause" hidden><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+        <svg class="ico-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <svg class="ico-pause" viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
       </button>
       <div class="speed">
         <input type="range" id="wpm" min="100" max="900" step="10" value="300" aria-label="Speed in words per minute">
@@ -259,7 +273,7 @@
   const els = {
     paste: $('paste'), txt: $('txt'), start: $('btnStart'), sample: $('btnSample'), count: $('count'),
     reader: $('reader'), stage: $('stage'), flash: $('flash'), word: $('word'), context: $('context'),
-    sweep: $('sweep'), article: $('article'), prog: $('prog'), play: $('btnPlay'), icoPlay: $('icoPlay'), icoPause: $('icoPause'),
+    sweep: $('sweep'), article: $('article'), prog: $('prog'), play: $('btnPlay'), theme: $('btnTheme'),
     wpm: $('wpm'), wpmOut: $('wpmOut'), wpfDown: $('wpfDown'), wpfUp: $('wpfUp'), wpfOut: $('wpfOut'),
     chipBold: $('chipBold'), chipDim: $('chipDim'), chipRamp: $('chipRamp'), chipPush: $('chipPush'),
     mFlash: $('mFlash'), mSweep: $('mSweep'), mSent: $('mSent'), sent: $('sent'), sentText: $('sentText'), sentMeta: $('sentMeta'), btnNew: $('btnNew')
@@ -540,12 +554,12 @@
     if (!chunks.length) return;
     if (pos >= chunks.length - 1) pos = 0;
     playing = true; playStart = performance.now();
-    els.icoPlay.hidden = true; els.icoPause.hidden = false; els.play.setAttribute('aria-label', 'Pause');
+    els.play.classList.add('playing'); els.play.setAttribute('aria-label', 'Pause');
     tick();
   }
   function pause() {
     playing = false; clearTimeout(timer);
-    els.icoPlay.hidden = false; els.icoPause.hidden = true; els.play.setAttribute('aria-label', 'Play');
+    els.play.classList.remove('playing'); els.play.setAttribute('aria-label', 'Play');
     if (settings.mode === 'sent' && chunks.length) renderSent();
   }
   const toggle = () => playing ? pause() : play();
@@ -711,6 +725,12 @@ Fixed-pivot reading tries to remove the problem at its root. If the text arrives
 
 The trick, then, is not speed for its own sake. It is the removal of choice. When there is nothing to decide, there is nothing to be distracted by, and the book, for once, gets read.`;
   els.sample.addEventListener('click', () => { els.txt.value = SAMPLE; updateCount(); });
+
+  /* ---------- theme ---------- */
+  const root = document.documentElement;
+  function applyTheme(t) { root.dataset.theme = t; store.set('steady:theme', t); }
+  applyTheme(store.get('steady:theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+  els.theme.addEventListener('click', () => applyTheme(root.dataset.theme === 'dark' ? 'light' : 'dark'));
 
   /* ---------- boot ---------- */
   refreshControls();
